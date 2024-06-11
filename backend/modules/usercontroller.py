@@ -1,7 +1,12 @@
 from typing import TYPE_CHECKING, List
 from .cache import Cache
-from ..classes.user import User
+# from ..classes.user import User
+from ..classes.sql import User
 from ..utils import filter_dictionary, is_valid_email
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+
 
 if TYPE_CHECKING:
     from backend import Backend
@@ -28,7 +33,7 @@ class UserController:
         """
         return await self.update(user=user)
 
-    async def get_by_id(self, user_id) -> 'User':
+    async def get_by_id(self, user_id:int, session:AsyncSession) -> 'User':
         """
         Retrieves a user from the database based on their unique identifier (user_id).
         It utilizes the get_by method to perform the actual retrieval, which checks
@@ -44,9 +49,9 @@ class UserController:
         Raises:
             Exception: If any error occurs during the database query or cache retrieval.
         """
-        return await self.get_by(uid=user_id)
+        return await self.get_by(uid=user_id, session=session)
 
-    async def get_by(self, login: str = None, uid: int = None) -> 'User':
+    async def get_by(self,session:AsyncSession, login: str = None, uid: int = None) -> 'User':
         """
         Retrieves a user from the database based on either the login or uid.
         If the user is found in the cache, it returns the cached user.
@@ -68,22 +73,34 @@ class UserController:
 
         if login is not None:
             query_key = "email" if is_valid_email(login) else "username"
-            query = {query_key: login}
+            stmt = select(User).filter_by(**{query_key: login})
+            # query = {query_key: login}
         elif uid is not None:
             cache_key = uid
-            query = {'_id': uid}
-
+            stmt = select(User).filter_by(id=uid)
+            # query = {'_id': uid}
+        else:
+            return None
+        
         if cache_key is not None:
             user_from_cache = await self.users.get(cache_key)
             if user_from_cache:
                 return user_from_cache
 
-        data = await self.__backend.database.find(
-            collection_name='users',
-            query=query,
-            limit=1
-        )
-
+        # data = await self.__backend.database.find(
+        #     collection_name='users',
+        #     query=query,
+        #     limit=1
+        # )
+        result = await session.execute(stmt)
+        user:User = result.scalar_one_or_none()
+        if user:
+            user_from_cache = await self.users.get(user.id)
+            if user_from_cache:
+                return user_from_cache
+        # print(user)
+        return user
+    
         if data:
             user_id = data[0]['_id']
             user_from_cache = await self.users.get(user_id)

@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   web:
-    image: backend_test  # Замените на имя вашего образа FastAPI
+    image: backend_test  
     build: .
     ports:
       - "8000:8000"

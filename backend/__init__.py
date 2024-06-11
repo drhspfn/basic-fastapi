@@ -8,6 +8,7 @@ from backend.modules.usercontroller import UserController
 from .utils import SingletonMeta, InfoOrLowerFilter
 from configparser import ConfigParser
 from .modules.mongomanager import MongoManager
+from .modules.sqlmanager import SQLManager
 from .modules.cache import Cache
 from .modules.worker import Worker
 
@@ -48,13 +49,13 @@ class Backend(metaclass=SingletonMeta):
                     self.logs_dir = os.path.abspath(
                         os.path.join(self.__root, log_dir))
 
-            self._mongo_host = self.config.get("mongodb", "host")
-            self._mongo_port = self.config.getint("mongodb", "port")
-            self._mongo_username = self.config.get("mongodb", "username")
-            self._mongo_password = self.config.get("mongodb", "password")
-            self._mongo_database = self.config.get("mongodb", "database")
-            self._mongo_min_pool = self.config.getint("mongodb", "min_pool")
-            self._mongo_max_pool = self.config.getint("mongodb", "max_pool")
+            self._mongo_host = self.config.get("database", "host")
+            self._mongo_port = self.config.getint("database", "port")
+            self._mongo_username = self.config.get("database", "username")
+            self._mongo_password = self.config.get("database", "password")
+            self._mongo_database = self.config.get("database", "database")
+            self._mongo_min_pool = self.config.getint("database", "min_pool")
+            self._mongo_max_pool = self.config.getint("database", "max_pool")
 
             ### ================================================================= ###
             # Logging
@@ -64,15 +65,24 @@ class Backend(metaclass=SingletonMeta):
 
             ### ================================================================= ###
             # MongoDB
-            self.database = MongoManager(
+            self.log("[STARTUP] Database Initialization...")
+            self.database = SQLManager(
                 host=self._mongo_host,
                 port=self._mongo_port,
                 username=self._mongo_username,
                 password=self._mongo_password,
                 database=self._mongo_database,
-                min_pool_size=self._mongo_min_pool,
-                max_pool_size=self._mongo_max_pool
             )
+            self.log("[STARTUP] Database Initialization. Successful!")
+            # self.database = MongoManager(
+            #     host=self._mongo_host,
+            #     port=self._mongo_port,
+            #     username=self._mongo_username,
+            #     password=self._mongo_password,
+            #     database=self._mongo_database,
+            #     min_pool_size=self._mongo_min_pool,
+            #     max_pool_size=self._mongo_max_pool
+            # )
 
             ### ================================================================= ###
             # User Controller
