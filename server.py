@@ -19,6 +19,7 @@ backend = Backend()
 
 async def startup_callback():
     try:
+        await backend.database.init_tables()
         # backend.log("[STARTUP] Database Initialization...")
         # await backend.database.connect()
         # backend.log("[STARTUP] Database Initialization. Successful!")

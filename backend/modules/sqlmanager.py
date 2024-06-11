@@ -1,5 +1,6 @@
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy import MetaData
 
 
 class SQLManager:
@@ -11,7 +12,15 @@ class SQLManager:
             self.uri = f"mysql+aiomysql://{host}/{database}"
 
         self.engine = create_async_engine(self.uri)
+    
+    async def init_tables(self):
+        async with self.engine.connect() as conn:
+            await conn.run_sync(self._load_metadata)
 
+    def _load_metadata(self, sync_conn):
+        self.metadata = MetaData()
+        self.metadata.reflect(bind=sync_conn)
+        # self.track_table = Table('tracks', self.metadata, autoload_with=sync_conn)
 
     async def close(self):
         await self.engine.dispose()
