@@ -3,7 +3,7 @@ import time
 import os
 import logging
 from signal import SIGTERM
-from typing import Union
+from typing import List, Union
 from backend.modules.usercontroller import UserController
 from .utils import SingletonMeta, InfoOrLowerFilter
 from configparser import ConfigParser
@@ -57,6 +57,12 @@ class Backend(metaclass=SingletonMeta):
             self._mongo_min_pool = self.config.getint("database", "min_pool")
             self._mongo_max_pool = self.config.getint("database", "max_pool")
 
+            self.__cors_origins = self.config.get("cors", "origins")
+            if self.__cors_origins != "":
+                self.__cors_origins = [origin.strip() for origin in self.__cors_origins.split(",")]
+            self.__cors_methods = self.config.get("cors", "methods")
+            if self.__cors_methods != "*":
+                self.__cors_methods = ", ".join([method.strip() for method in self.__cors_methods.split(",")])
             ### ================================================================= ###
             # Logging
             self._logger: logging.Logger = None
@@ -93,6 +99,12 @@ class Backend(metaclass=SingletonMeta):
     @property
     def debug_mode(self) -> bool:
         return self.__debug
+    @property
+    def cors_origins(self) -> List[str]:
+        return self.__cors_origins
+    @property
+    def cors_methods(self) -> str:
+        return self.__cors_methods
  
     @property
     def logger(self) -> logging.Logger:

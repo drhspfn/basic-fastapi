@@ -3,11 +3,10 @@ from fastapi import FastAPI, Request, APIRouter, Depends
 from fastapi.responses import JSONResponse
 from backend import Backend
 import time
-
+from starlette.responses import Response
 from fastapi.exceptions import HTTPException, RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.classes.error import NotFound
-
 
 backend = Backend()
 
@@ -23,7 +22,7 @@ async def startup_callback():
         # backend.log("[STARTUP] Database Initialization...")
         # await backend.database.connect()
         # backend.log("[STARTUP] Database Initialization. Successful!")
-        backend.log('sfasdsadd', level='DEBUG')
+        # backend.log('sfasdsadd', level='DEBUG')
     except Exception as e:
         backend._error_shutdown(e)
 
@@ -35,12 +34,34 @@ async def shutdown_callback():
         backend._error_shutdown(e)
 
 app = FastAPI(
-    title="Project OpenMusic",
+    title="Basic FastAPI",
     version="0.1.0",
     on_startup=[startup_callback],
     on_shutdown=[shutdown_callback]
 )
 apiv1_router = APIRouter(prefix="/api/v1")
+
+
+@app.middleware("http")
+async def custom_cors(request: Request, call_next):
+    start = time.time()
+    if request.method == "OPTIONS":
+        response = Response()
+    else:
+        response = await call_next(request)
+
+    origin = request.headers.get('Origin')
+    if request.method.lower() == "get":
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    elif origin in backend.cors_origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+
+    response.headers["Access-Control-Allow-Methods"] = backend.cors_methods
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "3600"
+    response.headers["X-Process-Time"] = str(time.time() - start)
+    return response
 
 
 @app.exception_handler(HTTPException)
@@ -79,14 +100,14 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/")
 async def root(request: Request, session: AsyncSession = Depends(backend.database.get_session)):
     return JSONResponse({
-        "message": "Welcome to Project OpenMusic!",
+        "message": "Welcome to Basic FastAPI!",
         "remote": f'{request.client.host}:{request.client.port}'
     })
 
 
 @apiv1_router.get("/user/get")
-async def get_users(request:Request, 
-                    user_id:Optional[int]=None, login:Optional[str]=None,
+async def get_users(request: Request,
+                    user_id: Optional[int] = None, login: Optional[str] = None,
                     session: AsyncSession = Depends(backend.database.get_session)):
     start = time.time()
     user = await backend.user_controller.get_by(uid=user_id, login=login, session=session)
