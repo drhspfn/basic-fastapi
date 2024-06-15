@@ -1,10 +1,12 @@
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 from .cache import Cache
 # from ..classes.user import User
 from ..classes.sql import User
+# from ..classes.user import User
 from ..utils import filter_dictionary, is_valid_email
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 
 
@@ -14,7 +16,7 @@ if TYPE_CHECKING:
 
 class UserController:
     def __init__(self, backend: 'Backend'):
-        self.users = Cache(100 * 60, on_delete=self._save)
+        self.users = Cache(5, on_delete=self._save)
         self.__backend = backend
 
     async def _save(self, id: int, user: 'User', *args, **kwargs) -> bool:
@@ -31,8 +33,11 @@ class UserController:
 
         This method calls the update method of the UserController class to save the user data to the database.
         """
-        return await self.update(user=user)
-
+        session = await self.__backend.database.get_session_directly()
+        result =  await self.update(user=user, session=session)
+        await session.close()
+        return result
+    
     async def get_by_id(self, user_id:int, session:AsyncSession) -> 'User':
         """
         Retrieves a user from the database based on their unique identifier (user_id).
@@ -68,50 +73,79 @@ class UserController:
         Raises:
             Exception: If any error occurs during the database query or cache retrieval.
         """
-        query = {}
         cache_key = None
 
         if login is not None:
             query_key = "email" if is_valid_email(login) else "username"
             stmt = select(User).filter_by(**{query_key: login})
-            # query = {query_key: login}
+            #cache_key = login      # Maybe you want to cache by login as well.
         elif uid is not None:
             cache_key = uid
             stmt = select(User).filter_by(id=uid)
-            # query = {'_id': uid}
         else:
             return None
         
         if cache_key is not None:
             user_from_cache = await self.users.get(cache_key)
             if user_from_cache:
+                print('returned user drom cache #1')
                 return user_from_cache
 
-        # data = await self.__backend.database.find(
-        #     collection_name='users',
-        #     query=query,
-        #     limit=1
-        # )
+        
         result = await session.execute(stmt)
         user:User = result.scalar_one_or_none()
         if user:
             user_from_cache = await self.users.get(user.id)
             if user_from_cache:
+                print('returned user drom cache #2')
                 return user_from_cache
-        # print(user)
+
+            await self.users.set(user.id, user)
+            print('added user to cache')
+
         return user
-    
-        if data:
-            user_id = data[0]['_id']
-            user_from_cache = await self.users.get(user_id)
-            if user_from_cache:
-                return user_from_cache
-            user = User.from_dict(data[0])
-            return user
-
-        return None
 
 
+    async def update(self, user: User, session: AsyncSession, fields: Optional[List[str]] = None) -> bool:
+        """
+        Updates user data in the database.
+
+        Args:
+            user (User): The user object to update.
+            fields (Optional[List[str]]): A list of fields to update. Defaults to None.
+                If provided, only the specified fields will be updated.
+                If not provided, all fields of the user object will be updated.
+            session (AsyncSession): The async session to use for the update operation.
+
+        Returns:
+            bool: True if saving was successful, False otherwise.
+
+        Raises:
+            Exception: If any error occurs during the update operation.
+        """
+        try:
+            db_user = await session.get(User, user.id)
+
+            if not db_user:
+                return False
+
+            user_data = user.to_dict()
+
+            if fields:
+                for field in fields:
+                    if field in user_data:
+                        setattr(db_user, field, user_data[field])
+            else:
+                for key, value in user_data.items():
+                    setattr(db_user, key, value)
+
+            await session.commit()
+            return True
+        except Exception as e:
+            await session.rollback()
+            raise e
+    '''
+    # Variation of an update for MongoDB
     async def update(self, user: User, fields: List[str] = None):
         """
         Updates user data in the database.
@@ -147,3 +181,44 @@ class UserController:
                                                                 query={
                                                                     '_id': user.id},
                                                                 update_data=update_data)
+        
+        '''
+
+
+    async def add_user(self, email:str, password:str, username:str, session:AsyncSession) -> User:
+        """
+        Adds a new user to the database.
+
+        Parameters:
+            email (str): The email of the new user.
+            password (str): The password of the new user.
+            username (str): The username of the new user.
+            session (AsyncSession): The SQLAlchemy AsyncSession object for database operations.
+
+        Returns:
+            User: The newly created User object.
+
+        This method creates a new User object with the provided email, password, and username.
+        It initializes the access token, refresh token, access token expiration, and refresh token expiration to empty strings and zeros respectively.
+        The new user is then added to the database using the provided AsyncSession object.
+        After the user is added to the database, the method generates access and refresh tokens using the __backend.generate_access method.
+        The generated tokens are then assigned to the user object.
+        Finally, the updated user object is added to the database and committed.
+        The newly created user object is then returned.
+        """
+        user = User(username=username, email=email, password=password)
+        user.access_token = ""
+        user.refresh_token = ""
+        user.access_token_expires = 0
+        user.refresh_token_expires = 0
+        session.add(user)
+        await session.commit()
+
+        tokens = self.__backend.generate_access(user)
+        user.access_token = tokens[0][0]
+        user.access_token_expires = tokens[0][1]
+        user.refresh_token = tokens[1][0]
+        user.refresh_token_expires = tokens[1][1]
+        session.add(user)
+        await session.commit()
+        return user

@@ -2,7 +2,7 @@ from ..utils import validate_dict, mask_string
 
 
 USER_VALIDATE = {
-    "_id": int,
+    "id": int,
     "username": str,
     "password": str,
     "email": str,
@@ -11,18 +11,18 @@ USER_VALIDATE = {
 
 
 
-
+### If use MongoDB, replace `id` to `_id`
 class User:
     def __init__(self) -> None:
-        self._id: int
+        self.id: int
         self.username: str
         self.password: str
         self.email: str
         self.email_confirmed: bool
 
-    @property
-    def id(self) -> int:
-        return self._id
+    # @property             # MongoDB moment...
+    # def id(self) -> int:
+    #     return self.id
 
     @staticmethod
     def from_dict(data: dict) -> 'User':
@@ -43,7 +43,7 @@ class User:
             raise ValueError("Invalid data")
 
         user = User()
-        user._id = data['_id']
+        user.id = data['id']
         user.username = data['username']
         user.password = data['password']
         user.email = data['email']
@@ -66,7 +66,7 @@ class User:
             None
         """
         return {
-            "_id": self._id,
+            "id": self.id,
             "username": self.username,
             "password": mask_string(self.password) if mask else self.password,
             "email": self.email,
@@ -93,7 +93,7 @@ class User:
             >>> json_data = user.to_json()
             >>> print(json_data)
             {
-                "_id": 1,
+                "id": 1,
                 "username": "john",
                 "password": "password",
                 "email": "john@example.com",
