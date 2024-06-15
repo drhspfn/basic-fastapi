@@ -88,7 +88,6 @@ class UserController:
         if cache_key is not None:
             user_from_cache = await self.users.get(cache_key)
             if user_from_cache:
-                print('returned user drom cache #1')
                 return user_from_cache
 
         
@@ -97,11 +96,9 @@ class UserController:
         if user:
             user_from_cache = await self.users.get(user.id)
             if user_from_cache:
-                print('returned user drom cache #2')
                 return user_from_cache
 
             await self.users.set(user.id, user)
-            print('added user to cache')
 
         return user
 

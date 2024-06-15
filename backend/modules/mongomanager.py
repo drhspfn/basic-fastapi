@@ -3,22 +3,22 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.results import InsertOneResult, InsertManyResult, UpdateResult
 from motor.core import AgnosticCollection
 from pymongo.results import DeleteResult
+from .config import DatabaseSettings
 
 class MongoManager:
-    def __init__(self, host: str, port: int, username: str, password: str,database:str,
-                 max_pool_size: int = 20, min_pool_size: int = 5):
+    def __init__(self, db_settings:DatabaseSettings):
         self._connected = False
-        if username and password:
-            self.uri = f"mongodb://{username}:{password}@{host}:{port}/"
+        if db_settings.username and db_settings.password:
+            self.uri = f"mongodb://{db_settings.username}:{db_settings.password}@{db_settings.host}:{db_settings.port}/"
         else:
-            self.uri = f"mongodb://{host}:{port}/"
+            self.uri = f"mongodb://{db_settings.host}:{db_settings.port}/"
             
         self.client = AsyncIOMotorClient(
             self.uri,
-            maxPoolSize=max_pool_size,
-            minPoolSize=min_pool_size
+            maxPoolSize=db_settings.max_pool,
+            minPoolSize=db_settings.min_pool
         )
-        self.mongodb = self.client[database]
+        self.mongodb = self.client[db_settings.database]
 
     async def close(self):
         if self.client:

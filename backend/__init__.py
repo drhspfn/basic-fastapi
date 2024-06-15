@@ -8,6 +8,7 @@ from typing import List, Literal, Tuple, Union
 from configparser import ConfigParser
 
 from backend.classes.models import RegistrationForm
+from backend.modules.config import ConfigLoader
 from .classes.error import *
 # from .classes.user import User
 from .classes.sql import User
@@ -42,63 +43,65 @@ class Backend(metaclass=SingletonMeta):
             self.worker = Worker(15)
 
             ### ================================================================= ###
-            # Paths
+            ### Paths
             self.path_config = os.path.join(self.__root, "config.ini")
-            self.logs_dir = os.path.join(self.__root, "logs")
             self.uvicorn_log_cfg = os.path.join(
                 self.__root, "backend", "data", "uvicorn_logging.conf")
-            # print((self.__root, self.uvicorn_log_cfg))
             if not os.path.exists(self.path_config):
                 raise FileNotFoundError(
                     f"Config file not found: {self.path_config}")
 
             ### ================================================================= ###
-            # Configuration
-            self.config = ConfigParser()
-            self.config.read(self.path_config)
-            self.__debug = self.config.getboolean("server", "debug")
-            self.__is_utc = self.config.getboolean("server", "utc_time")
-            log_dir = self.config.get('server', 'log_path')
-            if log_dir != "":
-                if os.path.isabs(log_dir):
-                    self.logs_dir = log_dir
-                else:
-                    self.logs_dir = os.path.abspath(
-                        os.path.join(self.__root, log_dir))
+            ### Configuration
+            self.config = ConfigLoader(
+                root=self.__root,
+                config_path=self.path_config)
+                
+            # self.config = ConfigParser()
+            # self.config.read(self.path_config)
+            # self.config.debug = self.config.getboolean("server", "debug")
+            # self.config.is_utc = self.config.getboolean("server", "utc_time")
+            # log_dir = self.config.get('server', 'log_path')
+            # if log_dir != "":
+            #     if os.path.isabs(log_dir):
+            #         self.logs_dir = log_dir
+            #     else:
+            #         self.logs_dir = os.path.abspath(
+            #             os.path.join(self.__root, log_dir))
 
-            self._mongo_host = self.config.get("database", "host")
-            self._mongo_port = self.config.getint("database", "port")
-            self._mongo_username = self.config.get("database", "username")
-            self._mongo_password = self.config.get("database", "password")
-            self._mongo_database = self.config.get("database", "database")
-            self._mongo_min_pool = self.config.getint("database", "min_pool")
-            self._mongo_max_pool = self.config.getint("database", "max_pool")
+            # self._mongo_host = self.config.get("database", "host")
+            # self._mongo_port = self.config.getint("database", "port")
+            # self._mongo_username = self.config.get("database", "username")
+            # self._mongo_password = self.config.get("database", "password")
+            # self._mongo_database = self.config.get("database", "database")
+            # self._mongo_min_pool = self.config.getint("database", "min_pool")
+            # self._mongo_max_pool = self.config.getint("database", "max_pool")
 
-            self.__cors_origins = self.config.get("cors", "origins")
-            if self.__cors_origins != "":
-                self.__cors_origins = [origin.strip()
-                                       for origin in self.__cors_origins.split(",")]
-            self.__cors_methods = self.config.get("cors", "methods")
-            if self.__cors_methods != "*":
-                self.__cors_methods = ", ".join(
-                    [method.strip() for method in self.__cors_methods.split(",")])
-            self.__secret = self.config.get("server", "secret_key")
+            # self.__cors_origins = self.config.get("cors", "origins")
+            # if self.__cors_origins != "":
+            #     self.__cors_origins = [origin.strip()
+            #                            for origin in self.__cors_origins.split(",")]
+            # self.__cors_methods = self.config.get("cors", "methods")
+            # if self.__cors_methods != "*":
+            #     self.__cors_methods = ", ".join(
+            #         [method.strip() for method in self.__cors_methods.split(",")])
+            # self.__secret = self.config.get("server", "secret_key")
 
-            self.access_token_lifetime = self.config.get(
-                "server", "token_access_expires")
-            if self.access_token_lifetime == "":
-                raise ValueError(
-                    "The [server] [token_access_expires] field cannot be empty...")
-            self.access_token_lifetime = parse_time_string(
-                self.access_token_lifetime)
+            # self.access_token_lifetime = self.config.get(
+            #     "server", "token_access_expires")
+            # if self.access_token_lifetime == "":
+            #     raise ValueError(
+            #         "The [server] [token_access_expires] field cannot be empty...")
+            # self.access_token_lifetime = parse_time_string(
+            #     self.access_token_lifetime)
 
-            self.refresh_token_lifetime = self.config.get(
-                "server", "token_access_expires")
-            if self.refresh_token_lifetime == "":
-                raise ValueError(
-                    "The [server] [token_refresh_expires] field cannot be empty...")
-            self.refresh_token_lifetime = parse_time_string(
-                self.refresh_token_lifetime)
+            # self.refresh_token_lifetime = self.config.get(
+            #     "server", "token_access_expires")
+            # if self.refresh_token_lifetime == "":
+            #     raise ValueError(
+            #         "The [server] [token_refresh_expires] field cannot be empty...")
+            # self.refresh_token_lifetime = parse_time_string(
+            #     self.refresh_token_lifetime)
             ### ================================================================= ###
             # Logging
             self._logger: logging.Logger = None
@@ -108,23 +111,9 @@ class Backend(metaclass=SingletonMeta):
             ### ================================================================= ###
             # MongoDB
             self.log("[STARTUP] Database Initialization...")
-            self.database = SQLManager(
-                host=self._mongo_host,
-                port=self._mongo_port,
-                username=self._mongo_username,
-                password=self._mongo_password,
-                database=self._mongo_database,
-            )
+            self.database = SQLManager(self.config.database)
             self.log("[STARTUP] Database Initialization. Successful!")
-            # self.database = MongoManager(
-            #     host=self._mongo_host,
-            #     port=self._mongo_port,
-            #     username=self._mongo_username,
-            #     password=self._mongo_password,
-            #     database=self._mongo_database,
-            #     min_pool_size=self._mongo_min_pool,
-            #     max_pool_size=self._mongo_max_pool
-            # )
+            # self.database = MongoManager(self.config.database)
 
             ### ================================================================= ###
             # User Controller
@@ -133,7 +122,7 @@ class Backend(metaclass=SingletonMeta):
             ### ================================================================= ###
             # Tokens
             self._blacklisted_tokens = {}
-            self.__cipher_key = self.__secret.ljust(32)[:32].encode()
+            self.__cipher_key = self.config.secret_key.ljust(32)[:32].encode()
             self.__cipher = Cipher(algorithms.AES(
                 self.__cipher_key), modes.ECB(), backend=default_backend())
 
@@ -159,15 +148,15 @@ class Backend(metaclass=SingletonMeta):
 
     @property
     def debug_mode(self) -> bool:
-        return self.__debug
+        return self.config.debug
 
     @property
     def cors_origins(self) -> List[str]:
-        return self.__cors_origins
+        return self.config.cors.origins
 
     @property
     def cors_methods(self) -> str:
-        return self.__cors_methods
+        return self.config.cors.methods
 
     @property
     def public_key(self) -> bytes:
@@ -180,7 +169,7 @@ class Backend(metaclass=SingletonMeta):
         return self._logger
 
     def fromtimestamp(self, timestamp: float, in_utc:bool=False) -> datetime:
-        if self.__is_utc is True or in_utc is True:
+        if self.config.is_utc is True or in_utc is True:
             return datetime.fromtimestamp(timestamp, tz=timezone.utc)
         else:
             return datetime.fromtimestamp(timestamp)
@@ -250,9 +239,9 @@ class Backend(metaclass=SingletonMeta):
         if self._logger is None or reload is True:
             # Initialize the logger
             self._logger = logging.getLogger(__name__)
-
+            
             # Set the logging level based on debug mode
-            if self.__debug:
+            if self.config.debug:
                 self._logger.setLevel(logging.DEBUG)
             else:
                 self._logger.setLevel(logging.INFO)
@@ -262,7 +251,7 @@ class Backend(metaclass=SingletonMeta):
                 '%(levelname)-9s:     %(asctime)s | %(message)s',
                 datefmt='%H:%M:%S'
             )
-            if self.__debug:
+            if self.config.debug:
                 debug_no_level_formatter = logging.Formatter(
                     '%(asctime)s | %(message)s',
                     datefmt='%H:%M:%S'
@@ -270,7 +259,7 @@ class Backend(metaclass=SingletonMeta):
 
             # Create the logs directory if it doesn't exist
             self.log_path = os.path.join(
-                self.logs_dir, self.__start_time.strftime('%Y-%m-%d'))
+                self.config.logs_dir, self.__start_time.strftime('%Y-%m-%d'))
             os.makedirs(self.log_path, exist_ok=True)
 
             # Set up console handler
@@ -287,7 +276,7 @@ class Backend(metaclass=SingletonMeta):
             file_handler_error.setLevel(logging.ERROR)
             file_handler_error.setFormatter(formatter)
 
-            if self.__debug:
+            if self.config.debug:
                 file_handler_debug = logging.FileHandler(
                     f'{self.log_path}/debug.log', encoding='utf-8')
                 file_handler_debug.setLevel(logging.DEBUG)
@@ -314,7 +303,7 @@ class Backend(metaclass=SingletonMeta):
             self._logger.addHandler(file_handler_info)
             self._logger.addHandler(console_handler)
             self._logger.addHandler(file_handler_error)
-            if self.__debug:
+            if self.config.debug:
                 self._logger.addHandler(file_handler_debug)
 
             console_handler.setFormatter(formatter)
@@ -343,7 +332,7 @@ class Backend(metaclass=SingletonMeta):
         if not 'type' in payload:
             payload['type'] = "unknown"
 
-        return jwt.encode(payload, self.__secret, algorithm="HS256")
+        return jwt.encode(payload, self.config.secret_key, algorithm="HS256")
 
     def generate_access(self, user: User) -> Tuple[Tuple[str, int], Tuple[str, int]]:
         """
@@ -371,14 +360,14 @@ class Backend(metaclass=SingletonMeta):
             'sub': user.username,
             'id': user.id,
             'type': 'access',
-            'exp': time_now + self.access_token_lifetime
+            'exp': time_now + self.config.access_token_lifetime
         }
         refresh_payload = {
             'email': user.email,
             'sub': user.username,
             'id': user.id,
             'type': 'refresh',
-            'exp': time_now + self.access_token_lifetime
+            'exp': time_now + self.config.refresh_token_lifetime
         }
         access_token = (self.generate_token(
             access_payload), access_payload["exp"])
@@ -445,7 +434,7 @@ class Backend(metaclass=SingletonMeta):
             if self._check_token(token):
                 raise TokenRevoked()
 
-            token_data = jwt.decode(token, self.__secret, algorithms=["HS256"])
+            token_data = jwt.decode(token, self.config.secret_key, algorithms=["HS256"])
             if not token_data or (token_type is not None and ((not 'type' in token_data) or (token_data['type'] != token_type))):
                 raise_token(token_type)
 
@@ -690,6 +679,6 @@ class Backend(metaclass=SingletonMeta):
             datetime: The current date and time based on the server's UTC time setting.
         """
         date = datetime.now()
-        if self.__is_utc is True:
+        if self.config.is_utc is True:
             date = date.replace(tzinfo=timezone.utc)
         return date

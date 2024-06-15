@@ -1,15 +1,15 @@
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import MetaData
-
+from .config import DatabaseSettings
 
 class SQLManager:
-    def __init__(self, host: str, port: int, username: str, password: str,database:str) -> None:
+    def __init__(self, db_settings:DatabaseSettings) -> None:
         self._connected = False
-        if username and password:
-            self.uri = f"mysql+aiomysql://{username}:{password}@{host}/{database}"
+        if db_settings.username and db_settings.password:
+            self.uri = f"mysql+aiomysql://{db_settings.username}:{db_settings.password}@{db_settings.host}/{db_settings.database}"
         else:
-            self.uri = f"mysql+aiomysql://{host}/{database}"
+            self.uri = f"mysql+aiomysql://{db_settings.host}/{db_settings.database}"
 
         self.engine = create_async_engine(self.uri)
     
